@@ -1,9 +1,9 @@
 
 > Created by the author of [Fast XML Parser](https://github.com/NaturalIntelligence/fast-xml-parser).
 
-This library exposes 2 type of XML parsers
+This library exposes 2 type of XML validators
 1. Syntax validator
-2. Business rule validator
+2. Business rule validator (Schema)
 
 ## Syntax validator
 
@@ -29,9 +29,9 @@ This is somewhat like XML schema validator but with some or rather more addition
 ```js
 const { BusinessRulesValidator } = require("fast-xml-validator");
 const options = {};
-const validator = new BusinessRulesValidator(rulesXml, options);
+const validator = new BusinessRulesValidator(rulesXml);
 
-const result = validator.validate(xmlData);
+const result = validator.validate(xmlData, options);
 ```
 
 ### Applications
