@@ -182,6 +182,9 @@ export function validate(xmlData, options) {
       if (isWhiteSpace(xmlData[i])) {
         continue;
       }
+      if (reachedRoot) {
+        return throwError('InvalidXml', "Extra text at the end: '" + xmlData[i] + "' is not expected.", getLineNumberForPosition(xmlData, i));
+      }
       return throwError('InvalidChar', "char '" + xmlData[i] + "' is not expected.", getLineNumberForPosition(xmlData, i));
     }
   }
@@ -211,13 +214,16 @@ function readPI(xmlData, i) {
       if (i > 5 && tagname === 'xml') {
         return throwError('InvalidXml', 'XML declaration allowed only at the start of the document.', getLineNumberForPosition(xmlData, i));
       } else if (xmlData[i] === '?' && xmlData[i + 1] === '>') {
-        //check if valid attribut string
         i++;
         break;
       } else {
         continue;
       }
     }
+  }
+  if (i >= xmlData.length) {
+    return throwError('InvalidXml', 'Processing instruction is not closed with "?>".',
+      getLineNumberForPosition(xmlData, start));
   }
   return i;
 }
@@ -237,6 +243,9 @@ function readCommentAndCDATA(xmlData, i, docTypeValidator) {
         i += 2;
         break;
       }
+    }
+    if (xmlData[i] !== '>') {
+      throw new Error('Comment is not closed with "-->".');
     }
   } else if (
     xmlData.length > i + 7 &&
@@ -268,6 +277,13 @@ function readCommentAndCDATA(xmlData, i, docTypeValidator) {
         break;
       }
     }
+    if (xmlData[i] !== '>') {
+      throw new Error('CDATA section is not closed with "]]>".');
+    }
+  } else {
+    //Reject unrecognised <! constructs (e.g. <!ELEMENT, <!ATTLIST
+    // appearing outside a DOCTYPE, or simply malformed "<!xyz").
+    throw new Error("Invalid construct starting with '<!'.");
   }
 
   return i;
@@ -316,21 +332,21 @@ function validateAttributeString(attrStr, options) {
 
   for (let i = 0; i < matches.length; i++) {
     if (matches[i][1].length === 0) {
-      return throwError('InvalidAttr', "Attribute '" + matches[i][2] + "' has no space in starting.", getPositionFromMatch(matches[i]));
+      return { err: { code: 'InvalidAttr', msg: "Attribute '" + matches[i][2] + "' has no space in starting.", line: getPositionFromMatch(matches[i]) } };
     } else if (matches[i][3] !== undefined && matches[i][4] === undefined) {
-      return throwError('InvalidAttr', "Attribute '" + matches[i][2] + "' is without value.", getPositionFromMatch(matches[i]));
+      return { err: { code: 'InvalidAttr', msg: "Attribute '" + matches[i][2] + "' is without value.", line: getPositionFromMatch(matches[i]) } };
     } else if (matches[i][3] === undefined && !options.allowBooleanAttributes) {
-      return throwError('InvalidAttr', "boolean attribute '" + matches[i][2] + "' is not allowed.", getPositionFromMatch(matches[i]));
+      return { err: { code: 'InvalidAttr', msg: "boolean attribute '" + matches[i][2] + "' is not allowed.", line: getPositionFromMatch(matches[i]) } };
     }
 
     const attrName = matches[i][2];
     if (!validateAttrName(attrName)) {
-      return throwError('InvalidAttr', "Attribute '" + attrName + "' is an invalid name.", getPositionFromMatch(matches[i]));
+      return { err: { code: 'InvalidAttr', msg: "Attribute '" + attrName + "' is an invalid name.", line: getPositionFromMatch(matches[i]) } };
     }
     if (!Object.prototype.hasOwnProperty.call(attrNames, attrName)) {
       attrNames[attrName] = 1;
     } else {
-      return throwError('InvalidAttr', "Attribute '" + attrName + "' is repeated.", getPositionFromMatch(matches[i]));
+      return { err: { code: 'InvalidAttr', msg: "Attribute '" + attrName + "' is repeated.", line: getPositionFromMatch(matches[i]) } };
     }
   }
 

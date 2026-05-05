@@ -478,3 +478,54 @@ describe("XML Validator with options", function () {
     });
 
 });
+
+fdescribe("incomplete tags", function () {
+    const input = [
+        {
+            xml: "<root/>abc",
+            errMsg: "Extra text at the end: 'a' is not expected."
+        },
+        {
+            xml: `<?xml version="1.0" encoding="UTF-8" <root/>`,
+            errMsg: `Processing instruction is not closed with "?>".`
+        },
+        {
+            xml: `<root>
+  <!-- this comment is never closed
+  <child/>
+</root>`,
+            errMsg: `Comment is not closed with "-->".`
+        },
+        {
+            xml: `<root>
+  <![CDATA[ some raw data here
+</root>`,
+            errMsg: `CDATA section is not closed with "]]>".`
+        },
+        {
+            xml: `<root>
+  <!ELEMENT child (#PCDATA)>
+</root>`,
+            errMsg: `Invalid construct starting with '<!'.`
+        },
+        {
+            xml: `<root>  <child>text</child>`,
+            errMsg: `Unclosed tag 'root'.`
+        },
+    ]
+
+    for (let i = 0; i < input.length; i++) {
+        const element = input[i];
+        it(`input ${i}`, () => {
+            try {
+                SyntaxValidator.validate(element.xml, {
+                    allowBooleanAttributes: true
+                });
+            } catch (e) {
+                expect(e.message).toBe(element.errMsg)
+            }
+        });
+
+    }
+
+});
