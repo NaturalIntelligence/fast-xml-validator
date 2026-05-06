@@ -39,7 +39,8 @@
     "validate",
     "syntax",
     "rules",
-    "business"
+    "business",
+    "schema"
   ],
   "author": "Amit Gupta (https://solothought.com)",
   "license": "MIT",
