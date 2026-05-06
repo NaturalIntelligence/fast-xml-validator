@@ -175,7 +175,7 @@ describe("XML Validator", function () {
 
     it("should not validate xml with non closing comment", function () {
         validateXml("<rootNode ><!-- <tag> -- <tag>1</tag><tag>val</tag></rootNode>", {
-            InvalidTag: "Unclosed tag 'rootNode'."
+            InvalidTag: `Comment is not closed with "-->".`
         }, 1);
     });
 
@@ -259,7 +259,7 @@ describe("XML Validator", function () {
 
     it("should fail for XML with ! which is not a comment, DOCTYPE or CDATA", function () {
         validateXml("<test><!bla></!bla></test>", {
-            InvalidTag: "Tag '!bla' is an invalid name."
+            InvalidTag: "Invalid construct starting with '<!'."
         });
     });
 
@@ -272,6 +272,12 @@ describe("XML Validator", function () {
     it("should not validate XML with prolog only", function () {
         validateXml("<?xml version=\"1.0\" standalone=\"yes\" ?><!--some comment -  end in this line-->", {
             InvalidXml: "Start tag expected."
+        });
+    });
+
+    it("should not validate XML when tag before declaration", function () {
+        validateXml(`<note><?xml version="1.0" encoding="utf-8"?>test</note>`, {
+            InvalidXml: "XML declaration allowed only at the start of the document."
         });
     });
 
@@ -479,7 +485,7 @@ describe("XML Validator with options", function () {
 
 });
 
-fdescribe("incomplete tags", function () {
+describe("incomplete tags", function () {
     const input = [
         {
             xml: "<root/>abc",
@@ -528,4 +534,218 @@ fdescribe("incomplete tags", function () {
 
     }
 
+});
+
+describe("late XML declaration", function () {
+    const input = [
+        {
+            xml: `<root/><?xml version="1.0"?>`,
+            errMsg: `XML declaration allowed only at the start of the document.`
+        },
+        {
+            xml: `<!-- a comment --><?xml version="1.0"?><root/>`,
+            errMsg: `XML declaration allowed only at the start of the document.`
+        },
+        {
+            xml: `<root><?xml version="1.0"?></root>`,
+            errMsg: `XML declaration allowed only at the start of the document.`
+        },
+    ];
+
+    for (let i = 0; i < input.length; i++) {
+        const element = input[i];
+        it(`input ${i}`, () => {
+            try {
+                SyntaxValidator.validate(element.xml, { allowBooleanAttributes: true });
+            } catch (e) {
+                expect(e.message).toBe(element.errMsg);
+            }
+        });
+    }
+});
+
+describe("namespace / QName validation", function () {
+    const input = [
+        {
+            // valid prefix:local — must pass (returns true, not throw)
+            xml: `<ns:root xmlns:ns="http://example.com"/>`,
+            errMsg: null
+        },
+        {
+            // valid namespaced attribute
+            xml: `<root xml:lang="en"/>`,
+            errMsg: null
+        },
+        {
+            // leading colon — no prefix
+            xml: `<:root/>`,
+            errMsg: `Tag ':root' is an invalid name.`
+        },
+        {
+            // trailing colon — no local part
+            xml: `<ns:/>`,
+            errMsg: `Tag 'ns:' is an invalid name.`
+        },
+        {
+            // double colon
+            xml: `<a:b:c/>`,
+            errMsg: `Tag 'a:b:c' is an invalid name.`
+        },
+        {
+            // invalid namespace attribute — leading colon
+            xml: `<root :bad="x"/>`,
+            errMsg: `Attribute ':bad' is an invalid name.`
+        },
+        {
+            // invalid namespace attribute — trailing colon
+            xml: `<root ns:="x"/>`,
+            errMsg: `Attribute 'ns:' is an invalid name.`
+        },
+        {
+            // invalid namespace attribute — double colon
+            xml: `<root a:b:c="x"/>`,
+            errMsg: `Attribute 'a:b:c' is an invalid name.`
+        },
+    ];
+
+    for (let i = 0; i < input.length; i++) {
+        const element = input[i];
+        it(`input ${i}`, () => {
+            if (element.errMsg === null) {
+                // valid XML — must not throw
+                expect(() =>
+                    SyntaxValidator.validate(element.xml, { allowBooleanAttributes: true })
+                ).not.toThrow();
+            } else {
+                try {
+                    SyntaxValidator.validate(element.xml, { allowBooleanAttributes: true });
+                } catch (e) {
+                    expect(e.message).toBe(element.errMsg);
+                }
+            }
+        });
+    }
+});
+
+describe("xmlns undeclaration (XML 1.0)", function () {
+    const input = [
+        {
+            // xmlns="" is XML 1.1-only; must be rejected in XML 1.0 mode
+            xml: `<root xmlns=""/>`,
+            errMsg: `Undeclaring the default namespace with xmlns="" is only permitted in XML 1.1 documents.`
+        },
+    ];
+
+    for (let i = 0; i < input.length; i++) {
+        const element = input[i];
+        it(`input ${i}`, () => {
+            try {
+                SyntaxValidator.validate(element.xml, { allowBooleanAttributes: true });
+            } catch (e) {
+                expect(e.message).toBe(element.errMsg);
+            }
+        });
+    }
+});
+
+describe("tag structure errors", function () {
+    const input = [
+        {
+            xml: `<root><child></root>`,
+            errMsg: `Expected closing tag 'child' (opened in line 1, col 7) instead of closing tag 'root'.`
+        },
+        {
+            xml: `</root>`,
+            errMsg: `Closing tag 'root' has not been opened.`
+        },
+        {
+            xml: `</root extra="x">`,
+            errMsg: `Closing tag 'root' can't have attributes or invalid starting.`
+        },
+        {
+            xml: `<root><a/><b/>`,
+            errMsg: `Unclosed tag 'root'.`
+        },
+        {
+            xml: `<root/><extra/>`,
+            errMsg: `Multiple possible root nodes found.`
+        },
+        {
+            xml: `   `,
+            errMsg: `Start tag expected.`
+        },
+    ];
+
+    for (let i = 0; i < input.length; i++) {
+        const element = input[i];
+        it(`input ${i}`, () => {
+            try {
+                SyntaxValidator.validate(element.xml, { allowBooleanAttributes: true });
+            } catch (e) {
+                expect(e.message).toBe(element.errMsg);
+            }
+        });
+    }
+});
+
+describe("attribute errors", function () {
+    const input = [
+        {
+            xml: `<root id="open>`,
+            errMsg: `Attributes for 'root' have open quote.`
+        },
+        {
+            xml: `<root id=>`,
+            errMsg: `Attribute 'id' is without value.`
+        },
+        {
+            xml: `<root id="a" id="b"/>`,
+            errMsg: `Attribute 'id' is repeated.`
+        },
+        {
+            // boolean attribute disallowed by default (no allowBooleanAttributes)
+            xml: `<root checked/>`,
+            errMsg: `boolean attribute 'checked' is not allowed.`
+        },
+    ];
+
+    for (let i = 0; i < input.length; i++) {
+        const element = input[i];
+        it(`input ${i}`, () => {
+            try {
+                // note: NOT passing allowBooleanAttributes here so the boolean check fires
+                SyntaxValidator.validate(element.xml);
+            } catch (e) {
+                expect(e.message).toBe(element.errMsg);
+            }
+        });
+    }
+});
+
+describe("character and entity errors", function () {
+    const input = [
+        {
+            xml: `<root>&;</root>`,
+            errMsg: `char '&' is not expected.`
+        },
+        {
+            xml: `<root>&toolong_entity_ref_over_20_chars;</root>`,
+            errMsg: `char '&' is not expected.`
+        },
+        {
+            xml: `abc<root/>`,
+            errMsg: `char 'a' is not expected.`
+        },
+    ];
+
+    for (let i = 0; i < input.length; i++) {
+        const element = input[i];
+        it(`input ${i}`, () => {
+            try {
+                SyntaxValidator.validate(element.xml, { allowBooleanAttributes: true });
+            } catch (e) {
+                expect(e.message).toBe(element.errMsg);
+            }
+        });
+    }
 });

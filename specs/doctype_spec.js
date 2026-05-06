@@ -27,7 +27,7 @@ describe("DOCTYPE validation", function () {
     it("should error for invalid DOCTYPE tag", function () {
         const xmlData = `<?xml version="1.0"?><!DOCCTYPE foo><foo/>`;
         // console.log(SyntaxValidator.validate(xmlData))
-        expect(() => SyntaxValidator.validate(xmlData)).toThrowError("char 'D' is not expected.");
+        expect(() => SyntaxValidator.validate(xmlData)).toThrowError("Invalid construct starting with '<!'.");
     });
 
     it("should pass for DOCTYPE with valid comment expressions", function () {

@@ -30,6 +30,15 @@ export function validate(xmlData, options) {
     xmlData = xmlData.substr(1);
   }
 
+  if (xmlData.startsWith('<?xml')) {
+    const piEnd = xmlData.indexOf('?>');
+    if (piEnd === -1) {
+      return throwError('InvalidXml', 'Processing instruction is not closed with "?>".',
+        { line: 1, col: 1 });
+    }
+    xmlData = xmlData.substring(piEnd + 2);
+  }
+
   for (let i = 0; i < xmlData.length; i++) {
     if (xmlData[i] === '<' && xmlData[i + 1] === '?') {
       i += 2;
@@ -75,7 +84,9 @@ export function validate(xmlData, options) {
           i--;
         }
 
-        if (!validateTagName(tagName)) {
+        // use validateQName so namespaced tags (e.g. <ns:tag>) are
+        // accepted and malformed ones (e.g. <:tag>, <ns:>, <a:b:c>) are rejected.
+        if (!validateQName(tagName)) {
           let msg;
           if (tagName.trim().length === 0) {
             msg = "Invalid space after '<'.";
@@ -158,7 +169,8 @@ export function validate(xmlData, options) {
               }
               continue;
             } else if (xmlData[i + 1] === '?') {
-              i = readPI(xmlData, ++i);
+              i += 2;
+              i = readPI(xmlData, i);
               if (i.err) return i;
             } else {
               break;
@@ -207,25 +219,34 @@ function isWhiteSpace(char) {
 }
 
 function readPI(xmlData, i) {
-  const start = i;
+  const piStart = i; // points just after '<?'
+  const nameStart = i;
+
   for (; i < xmlData.length; i++) {
-    if (xmlData[i] === '?' || xmlData[i] === ' ') {
-      const tagname = xmlData.substr(start, i - start);
-      if (i > 5 && tagname === 'xml') {
-        return throwError('InvalidXml', 'XML declaration allowed only at the start of the document.', getLineNumberForPosition(xmlData, i));
-      } else if (xmlData[i] === '?' && xmlData[i + 1] === '>') {
+    const ch = xmlData[i];
+    if (ch === ' ' || ch === '?') { //end of name
+      const piName = xmlData.substr(nameStart, i - nameStart);
+
+      if (piName.toLowerCase() === 'xml') {
+        return throwError(
+          'InvalidXml',
+          'XML declaration allowed only at the start of the document.',
+          getLineNumberForPosition(xmlData, piStart - 2) // point at '<'
+        );
+      } else if (ch === '?' && xmlData[i + 1] === '>') {
         i++;
-        break;
-      } else {
-        continue;
+        return i;
       }
     }
+    continue;
   }
-  if (i >= xmlData.length) {
-    return throwError('InvalidXml', 'Processing instruction is not closed with "?>".',
-      getLineNumberForPosition(xmlData, start));
-  }
-  return i;
+
+  // reached EOF without closing '?>'
+  return throwError(
+    'InvalidXml',
+    'Processing instruction is not closed with "?>".',
+    getLineNumberForPosition(xmlData, piStart - 2) // point at '<'
+  );
 }
 
 /**
@@ -340,9 +361,19 @@ function validateAttributeString(attrStr, options) {
     }
 
     const attrName = matches[i][2];
-    if (!validateAttrName(attrName)) {
+
+    //validate attribute names as QNames so namespaced attributes
+    // (e.g. xml:lang, xmlns:xsi) are accepted and malformed ones are rejected.
+    if (!validateQName(attrName)) {
       return { err: { code: 'InvalidAttr', msg: "Attribute '" + attrName + "' is an invalid name.", line: getPositionFromMatch(matches[i]) } };
     }
+
+    // xmlns="" (undeclaring the default namespace) is valid in XML 1.1
+    // only. Emit a clear error rather than silently accepting it.
+    if (attrName === 'xmlns' && matches[i][6] === '') {
+      return { err: { code: 'InvalidAttr', msg: 'Undeclaring the default namespace with xmlns="" is only permitted in XML 1.1 documents.', line: getPositionFromMatch(matches[i]) } };
+    }
+
     if (!Object.prototype.hasOwnProperty.call(attrNames, attrName)) {
       attrNames[attrName] = 1;
     } else {
@@ -383,7 +414,42 @@ function validateAmpersand(xmlData, i) {
 }
 
 function throwError(code, message, lineNumber) {
-  throw new ValidationError(message, code, lineNumber.line || lineNumber, lineNumber.col)
+  throw new ValidationError(message, code, lineNumber.line || lineNumber, lineNumber.col);
+}
+
+/**
+ * Validate an XML QName (Namespaces in XML 1.0 §2.3).
+ *
+ * A QName is either:
+ *   • a plain NCName  (no colon)          — e.g. "foo"
+ *   • a prefixed name  NCName ':' NCName  — e.g. "ns:foo"
+ *
+ * Rules enforced:
+ *   - The name must not be empty.
+ *   - At most one colon is allowed.
+ *   - Neither the prefix nor the local part may be empty
+ *     (so ":foo", "ns:", and ":" are all rejected).
+ *   - Both parts must individually satisfy isName().
+ */
+function validateQName(name) {
+  if (!name || name.length === 0) return false;
+
+  const colonIndex = name.indexOf(':');
+
+  if (colonIndex === -1) {
+    // Plain name — no namespace prefix.
+    return isName(name);
+  }
+
+  // Reject multiple colons (e.g. "a:b:c").
+  if (name.indexOf(':', colonIndex + 1) !== -1) return false;
+
+  const prefix = name.substring(0, colonIndex);
+  const local = name.substring(colonIndex + 1);
+
+  // Both parts must be non-empty valid Names.
+  if (prefix.length === 0 || local.length === 0) return false;
+  return isName(prefix) && isName(local);
 }
 
 function validateAttrName(attrName) {
