@@ -54,7 +54,7 @@ export function validate(xmlData, options) {
         try {
           i = readCommentAndCDATA(xmlData, i, docTypeValidator);
         } catch (err) {
-          return throwError("InvalidDocType", err.message, getLineNumberForPosition(xmlData, i - 1));
+          return throwError("InvalidTag", err.message, getLineNumberForPosition(xmlData, i - 1));
         }
         continue;
       } else {
@@ -93,7 +93,7 @@ export function validate(xmlData, options) {
           } else {
             msg = "Tag '" + tagName + "' is an invalid name.";
           }
-          return throwError('InvalidTag', msg, getLineNumberForPosition(xmlData, i));
+          return throwError('InvalidTag', msg, getLineNumberForPosition(xmlData, tagStartPos));
         }
 
         const result = readAttributeStr(xmlData, i);
@@ -109,7 +109,14 @@ export function validate(xmlData, options) {
           attrStr = attrStr.substring(0, attrStr.length - 1);
           const isValid = validateAttributeString(attrStr, options);
           if (isValid === true) {
+            if (reachedRoot === true) {
+              return throwError('InvalidXml', 'Multiple possible root nodes found.', getLineNumberForPosition(xmlData, tagStartPos));
+            }
             tagFound = true;
+            //if no open tags remain on the stack, this self-closing tag is the root
+            if (tags.length === 0) {
+              reachedRoot = true;
+            }
           } else {
             //the result from the nested function returns the position of the error within the attribute
             //in order to get the 'true' error line, we need to calculate the position where the attribute begins (i - attrStr.length) and then add the position within the attribute
@@ -202,12 +209,12 @@ export function validate(xmlData, options) {
   }
 
   if (!tagFound) {
-    return throwError('InvalidXml', 'Start tag expected.', 1);
+    return throwError('InvalidXml', 'Start tag expected.', { line: 1, col: 1 });
   } else if (tags.length === 1) {
     return throwError('InvalidTag', "Unclosed tag '" + tags[0].tagName + "'.", getLineNumberForPosition(xmlData, tags[0].tagStartPos));
   } else if (tags.length > 0) {
     return throwError('InvalidXml', "Invalid '" +
-      JSON.stringify(tags.map(t => t.tagName), null, 4).replace(/\r?\n/g, '') +
+      JSON.stringify(tags.map(t => t.tagName)).replace(/\r?\n/g, '') +
       "' found.", { line: 1, col: 1 });
   }
 
@@ -450,14 +457,6 @@ function validateQName(name) {
   // Both parts must be non-empty valid Names.
   if (prefix.length === 0 || local.length === 0) return false;
   return isName(prefix) && isName(local);
-}
-
-function validateAttrName(attrName) {
-  return isName(attrName);
-}
-
-function validateTagName(tagname) {
-  return isName(tagname);
 }
 
 function getLineNumberForPosition(xmlData, index) {

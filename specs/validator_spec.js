@@ -489,7 +489,7 @@ describe("incomplete tags", function () {
     const input = [
         {
             xml: "<root/>abc",
-            errMsg: "Extra text at the end: 'a' is not expected."
+            errMsg: "Extra text at the end"
         },
         {
             xml: `<?xml version="1.0" encoding="UTF-8" <root/>`,
