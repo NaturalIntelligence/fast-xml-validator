@@ -493,7 +493,7 @@ describe("incomplete tags", function () {
         },
         {
             xml: `<?xml version="1.0" encoding="UTF-8" <root/>`,
-            errMsg: `Processing instruction is not closed with "?>".`
+            errMsg: `XML declaration is not closed with "?>".`
         },
         {
             xml: `<root>

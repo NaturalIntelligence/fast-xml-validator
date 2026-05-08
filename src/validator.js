@@ -18,8 +18,6 @@ const defaultOptions = {
 export function validate(xmlData, options) {
   options = Object.assign({}, defaultOptions, options);
 
-  const docTypeValidator = new DocTypeValidator(options.docType);
-
   const tags = [];
   let tagFound = false;
 
@@ -31,19 +29,20 @@ export function validate(xmlData, options) {
     xmlData = xmlData.substr(1);
   }
 
+  let xmlVersion = '1.0'; // default per spec
   if (xmlData.startsWith('<?xml')) {
-    const piEnd = xmlData.indexOf('?>');
-    if (piEnd === -1) {
-      return throwError('InvalidXml', 'Processing instruction is not closed with "?>".',
-        { line: 1, col: 1 });
-    }
-    xmlData = xmlData.substring(piEnd + 2);
+    const declResult = parseXmlDeclaration(xmlData);
+    if (declResult.err) return declResult;
+    xmlVersion = declResult.version;
+    xmlData = xmlData.substring(declResult.end);
   }
+
+  const docTypeValidator = new DocTypeValidator(options.docType, xmlVersion);
 
   for (let i = 0; i < xmlData.length; i++) {
     if (xmlData[i] === '<' && xmlData[i + 1] === '?') {
       i += 2;
-      i = readPI(xmlData, i);
+      i = readPI(xmlData, i, xmlVersion);
       if (i.err) return i;
     } else if (xmlData[i] === '<') {
       //starting of tag
@@ -55,7 +54,7 @@ export function validate(xmlData, options) {
         try {
           i = readCommentAndCDATA(xmlData, i, docTypeValidator);
         } catch (err) {
-          return throwError("InvalidTag", err.message, getLineNumberForPosition(xmlData, i - 1));
+          throwError("InvalidTag", err.message, getLineNumberForPosition(xmlData, i - 1));
         }
         continue;
       } else {
@@ -94,12 +93,12 @@ export function validate(xmlData, options) {
           } else {
             msg = "Tag '" + tagName + "' is an invalid name.";
           }
-          return throwError('InvalidTag', msg, getLineNumberForPosition(xmlData, tagStartPos));
+          throwError('InvalidTag', msg, getLineNumberForPosition(xmlData, tagStartPos));
         }
 
         const result = readAttributeStr(xmlData, i);
         if (result === false) {
-          return throwError('InvalidAttr', "Attributes for '" + tagName + "' have open quote.", getLineNumberForPosition(xmlData, i));
+          throwError('InvalidAttr', "Attributes for '" + tagName + "' have open quote.", getLineNumberForPosition(xmlData, i));
         }
         let attrStr = result.value;
         i = result.index;
@@ -108,10 +107,10 @@ export function validate(xmlData, options) {
           //self closing tag
           const attrStrStart = i - attrStr.length;
           attrStr = attrStr.substring(0, attrStr.length - 1);
-          const isValid = validateAttributeString(attrStr, options);
+          const isValid = validateAttributeString(attrStr, options, xmlVersion);
           if (isValid === true) {
             if (reachedRoot === true) {
-              return throwError('InvalidXml', 'Multiple possible root nodes found.', getLineNumberForPosition(xmlData, tagStartPos));
+              throwError('InvalidXml', 'Multiple possible root nodes found.', getLineNumberForPosition(xmlData, tagStartPos));
             }
             tagFound = true;
             //if no open tags remain on the stack, this self-closing tag is the root
@@ -122,20 +121,20 @@ export function validate(xmlData, options) {
             //the result from the nested function returns the position of the error within the attribute
             //in order to get the 'true' error line, we need to calculate the position where the attribute begins (i - attrStr.length) and then add the position within the attribute
             //this gives us the absolute index in the entire xml, which we can use to find the line at last
-            return throwError(isValid.err.code, isValid.err.msg, getLineNumberForPosition(xmlData, attrStrStart + isValid.err.line));
+            throwError(isValid.err.code, isValid.err.msg, getLineNumberForPosition(xmlData, attrStrStart + isValid.err.line));
           }
         } else if (closingTag) {
           if (!result.tagClosed) {
-            return throwError('InvalidTag', "Closing tag '" + tagName + "' doesn't have proper closing.", getLineNumberForPosition(xmlData, i));
+            throwError('InvalidTag', "Closing tag '" + tagName + "' doesn't have proper closing.", getLineNumberForPosition(xmlData, i));
           } else if (attrStr.trim().length > 0) {
-            return throwError('InvalidTag', "Closing tag '" + tagName + "' can't have attributes or invalid starting.", getLineNumberForPosition(xmlData, tagStartPos));
+            throwError('InvalidTag', "Closing tag '" + tagName + "' can't have attributes or invalid starting.", getLineNumberForPosition(xmlData, tagStartPos));
           } else if (tags.length === 0) {
-            return throwError('InvalidTag', "Closing tag '" + tagName + "' has not been opened.", getLineNumberForPosition(xmlData, tagStartPos));
+            throwError('InvalidTag', "Closing tag '" + tagName + "' has not been opened.", getLineNumberForPosition(xmlData, tagStartPos));
           } else {
             const otg = tags.pop();
             if (tagName !== otg.tagName) {
               let openPos = getLineNumberForPosition(xmlData, otg.tagStartPos);
-              return throwError(
+              throwError(
                 'InvalidTag',
                 "Expected closing tag '" + otg.tagName + "' (opened in line " + openPos.line + ", col " + openPos.col + ") instead of closing tag '" + tagName + "'.",
                 getLineNumberForPosition(xmlData, tagStartPos)
@@ -148,13 +147,13 @@ export function validate(xmlData, options) {
             }
           }
         } else {
-          const isValid = validateAttributeString(attrStr, options);
+          const isValid = validateAttributeString(attrStr, options, xmlVersion);
           if (isValid !== true) {
-            return throwError(isValid.err.code, isValid.err.msg, getLineNumberForPosition(xmlData, i - attrStr.length + isValid.err.line));
+            throwError(isValid.err.code, isValid.err.msg, getLineNumberForPosition(xmlData, i - attrStr.length + isValid.err.line));
           }
 
           if (reachedRoot === true) {
-            return throwError('InvalidXml', 'Multiple possible root nodes found.', getLineNumberForPosition(xmlData, i));
+            throwError('InvalidXml', 'Multiple possible root nodes found.', getLineNumberForPosition(xmlData, i));
           } else if (options.unpairedTags.indexOf(tagName) !== -1) {
             // don't push into stack
           } else {
@@ -173,12 +172,12 @@ export function validate(xmlData, options) {
               try {
                 i = readCommentAndCDATA(xmlData, i, docTypeValidator);
               } catch (err) {
-                return throwError("InvalidDocType", err.message, getLineNumberForPosition(xmlData, i - 1));
+                throwError("InvalidDocType", err.message, getLineNumberForPosition(xmlData, i - 1));
               }
               continue;
             } else if (xmlData[i + 1] === '?') {
               i += 2;
-              i = readPI(xmlData, i);
+              i = readPI(xmlData, i, xmlVersion);
               if (i.err) return i;
             } else {
               break;
@@ -186,11 +185,11 @@ export function validate(xmlData, options) {
           } else if (xmlData[i] === '&') {
             const afterAmp = validateAmpersand(xmlData, i);
             if (afterAmp === -1)
-              return throwError('InvalidChar', "char '&' is not expected.", getLineNumberForPosition(xmlData, i));
+              throwError('InvalidChar', "char '&' is not expected.", getLineNumberForPosition(xmlData, i));
             i = afterAmp;
           } else {
             if (reachedRoot === true && !isWhiteSpace(xmlData[i])) {
-              return throwError('InvalidXml', 'Extra text at the end', getLineNumberForPosition(xmlData, i));
+              throwError('InvalidXml', 'Extra text at the end', getLineNumberForPosition(xmlData, i));
             }
           }
         } //end of reading tag text value
@@ -203,18 +202,18 @@ export function validate(xmlData, options) {
         continue;
       }
       if (reachedRoot) {
-        return throwError('InvalidXml', "Extra text at the end: '" + xmlData[i] + "' is not expected.", getLineNumberForPosition(xmlData, i));
+        throwError('InvalidXml', "Extra text at the end: '" + xmlData[i] + "' is not expected.", getLineNumberForPosition(xmlData, i));
       }
-      return throwError('InvalidChar', "char '" + xmlData[i] + "' is not expected.", getLineNumberForPosition(xmlData, i));
+      throwError('InvalidChar', "char '" + xmlData[i] + "' is not expected.", getLineNumberForPosition(xmlData, i));
     }
   }
 
   if (!tagFound) {
-    return throwError('InvalidXml', 'Start tag expected.', { line: 1, col: 1 });
+    throwError('InvalidXml', 'Start tag expected.', { line: 1, col: 1 });
   } else if (tags.length === 1) {
-    return throwError('InvalidTag', "Unclosed tag '" + tags[0].tagName + "'.", getLineNumberForPosition(xmlData, tags[0].tagStartPos));
+    throwError('InvalidTag', "Unclosed tag '" + tags[0].tagName + "'.", getLineNumberForPosition(xmlData, tags[0].tagStartPos));
   } else if (tags.length > 0) {
-    return throwError('InvalidXml', "Invalid '" +
+    throwError('InvalidXml', "Invalid '" +
       JSON.stringify(tags.map(t => t.tagName)).replace(/\r?\n/g, '') +
       "' found.", { line: 1, col: 1 });
   }
@@ -226,7 +225,7 @@ function isWhiteSpace(char) {
   return char === ' ' || char === '\t' || char === '\n' || char === '\r';
 }
 
-function readPI(xmlData, i) {
+function readPI(xmlData, i, xmlVersion = '1.0') {
   const piStart = i; // points just after '<?'
   const nameStart = i;
   let nameValidated = false;
@@ -240,14 +239,14 @@ function readPI(xmlData, i) {
       nameValidated = true;
 
       if (piName.toLowerCase() === 'xml') {
-        return throwError(
+        throwError(
           'InvalidXml',
           'XML declaration allowed only at the start of the document.',
           getLineNumberForPosition(xmlData, piStart - 2) // point at '<'
         );
-      } else if (!xmlName(piName)) {
+      } else if (!xmlName(piName, { xmlVersion })) {
         // PI target must be a valid XML Name (XML 1.0 §2.6)
-        return throwError(
+        throwError(
           'InvalidXml',
           `Processing instruction target "${piName}" is not a valid XML Name.`,
           getLineNumberForPosition(xmlData, piStart - 2)
@@ -262,7 +261,7 @@ function readPI(xmlData, i) {
   }
 
   // reached EOF without closing '?>'
-  return throwError(
+  throwError(
     'InvalidXml',
     'Processing instruction is not closed with "?>".',
     getLineNumberForPosition(xmlData, piStart - 2) // point at '<'
@@ -367,7 +366,7 @@ function readAttributeStr(xmlData, i) {
 
 const validAttrStrRegxp = new RegExp('(\\s*)([^\\s=]+)(\\s*=)?(\\s*([\'"])(([\\s\\S])*?)\\5)?', 'g');
 
-function validateAttributeString(attrStr, options) {
+function validateAttributeString(attrStr, options, xmlVersion) {
   const matches = getAllMatches(attrStr, validAttrStrRegxp);
   const attrNames = {};
 
@@ -384,7 +383,7 @@ function validateAttributeString(attrStr, options) {
 
     //validate attribute names as QNames so namespaced attributes
     // (e.g. xml:lang, xmlns:xsi) are accepted and malformed ones are rejected.
-    if (!validateQName(attrName)) {
+    if (!validateQName(attrName, xmlVersion)) {
       return { err: { code: 'InvalidAttr', msg: "Attribute '" + attrName + "' is an invalid name.", line: getPositionFromMatch(matches[i]) } };
     }
 
@@ -445,8 +444,8 @@ function throwError(code, message, lineNumber) {
  *   - Neither prefix nor local part may be empty (:foo, ns:, : all rejected).
  *   - Both parts must satisfy NCName character rules.
  */
-function validateQName(str) {
-  return qName(str);
+function validateQName(str, xmlVersion = '1.0') {
+  return qName(str, { xmlVersion });
 }
 
 function getLineNumberForPosition(xmlData, index) {
@@ -459,4 +458,83 @@ function getLineNumberForPosition(xmlData, index) {
 
 function getPositionFromMatch(match) {
   return match.startIndex + match[1].length;
+}
+
+/**
+ * Parses and validates the XML declaration: <?xml version="..." encoding="..." standalone="..."?>
+ *
+ * Rules (XML 1.0 §2.8 / XML 1.1 §2.8):
+ *   - Attributes must appear in fixed order: version, encoding, standalone
+ *   - No other attributes are allowed
+ *   - version is optional (defaults to '1.0'); if present must be '1.0' or '1.1'
+ *   - encoding and standalone are optional
+ *   - All values must be quoted (single or double)
+ *
+ * @param {string} xmlData — full XML string starting with '<?xml'
+ * @returns {{ version: string, end: number } | { err: true }}
+ */
+function parseXmlDeclaration(xmlData) {
+  const piEnd = xmlData.indexOf('?>');
+  if (piEnd === -1) {
+    throwError('InvalidXml', 'XML declaration is not closed with "?>".', { line: 1, col: 1 });
+  }
+
+  const declBody = xmlData.substring(5, piEnd); // content between '<?xml' and '?>' — keep leading whitespace for regex
+  const end = piEnd + 2;
+
+  // Allowed attributes in required order
+  const ALLOWED = ['version', 'encoding', 'standalone'];
+  const attrRe = /\s+([\w]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+
+  let version = '1.0';
+  let lastAllowedIdx = -1;
+  let match;
+
+  while ((match = attrRe.exec(declBody)) !== null) {
+    const attrName = match[1];
+    const attrValue = match[2] !== undefined ? match[2] : match[3];
+    const attrPos = match.index;
+
+    // Must be a known attribute
+    const allowedIdx = ALLOWED.indexOf(attrName);
+    if (allowedIdx === -1) {
+      throwError('InvalidXml',
+        'XML declaration contains unknown attribute "' + attrName + '". Allowed: version, encoding, standalone.',
+        { line: 1, col: 6 + attrPos });
+    }
+
+    // Must appear in fixed order: version, encoding, standalone
+    if (allowedIdx <= lastAllowedIdx) {
+      throwError('InvalidXml',
+        'XML declaration attribute "' + attrName + '" is out of order. Required order: version, encoding, standalone.',
+        { line: 1, col: 6 + attrPos });
+    }
+    lastAllowedIdx = allowedIdx;
+
+    if (attrName === 'version') {
+      if (attrValue !== '1.0' && attrValue !== '1.1') {
+        throwError('InvalidXml',
+          'XML declaration version "' + attrValue + '" is not supported. Must be "1.0" or "1.1".',
+          { line: 1, col: 6 + attrPos });
+      }
+      version = attrValue;
+    } else if (attrName === 'standalone') {
+      if (attrValue !== 'yes' && attrValue !== 'no') {
+        throwError('InvalidXml',
+          'XML declaration standalone "' + attrValue + '" is invalid. Must be "yes" or "no".',
+          { line: 1, col: 6 + attrPos });
+      }
+    }
+    // encoding: value format validation is out of scope
+  }
+
+  // Check for leftover unrecognised content (e.g. unquoted tokens or junk)
+  const leftover = declBody.replace(/\s+[\w]+\s*=\s*(?:"[^"]*"|'[^']*')/g, '').trim();
+  if (leftover.length > 0) {
+    throwError('InvalidXml',
+      'XML declaration contains invalid content: "' + leftover + '".',
+      { line: 1, col: 1 });
+  }
+
+  return { version, end };
 }

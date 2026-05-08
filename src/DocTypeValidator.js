@@ -6,9 +6,10 @@ const defaultOptions = {
 };
 
 export default class DocTypeValidator {
-    constructor(options) {
+    constructor(options, xmlVersion = '1.0') {
         this.options = Object.assign({}, defaultOptions, options);
         this.suppressValidationErr = !options;
+        this.xmlVersion = xmlVersion;
     }
 
     validateDocType(xmlData, i) {
@@ -84,7 +85,7 @@ export default class DocTypeValidator {
             i++;
         }
         const entityName = xmlData.substring(nameStart, i);
-        validateName(entityName);
+        validateName(entityName, this.xmlVersion);
 
         i = skipWhitespace(xmlData, i);
 
@@ -129,7 +130,7 @@ export default class DocTypeValidator {
         const nameStart = i;
         while (i < xmlData.length && !/\s/.test(xmlData[i])) i++;
         const notationName = xmlData.substring(nameStart, i);
-        !this.suppressValidationErr && validateName(notationName);
+        !this.suppressValidationErr && validateName(notationName, this.xmlVersion);
 
         i = skipWhitespace(xmlData, i);
 
@@ -160,7 +161,7 @@ export default class DocTypeValidator {
         const nameStart = i;
         while (i < xmlData.length && !/\s/.test(xmlData[i])) i++;
         const elementName = xmlData.substring(nameStart, i);
-        if (!this.suppressValidationErr && !isXmlName(elementName)) {
+        if (!this.suppressValidationErr && !isXmlName(elementName, { xmlVersion: this.xmlVersion })) {
             throw new Error(`Invalid element name: "${elementName}"`);
         }
 
@@ -189,7 +190,7 @@ export default class DocTypeValidator {
         const elemNameStart = i;
         while (i < xmlData.length && !/\s/.test(xmlData[i])) i++;
         const elementName = xmlData.substring(elemNameStart, i);
-        validateName(elementName);
+        validateName(elementName, this.xmlVersion);
 
         i = skipWhitespace(xmlData, i);
 
@@ -197,7 +198,7 @@ export default class DocTypeValidator {
         const attrNameStart = i;
         while (i < xmlData.length && !/\s/.test(xmlData[i])) i++;
         const attributeName = xmlData.substring(attrNameStart, i);
-        validateName(attributeName);
+        validateName(attributeName, this.xmlVersion);
 
         i = skipWhitespace(xmlData, i);
 
@@ -211,7 +212,7 @@ export default class DocTypeValidator {
                 const notationStart = i;
                 while (i < xmlData.length && xmlData[i] !== '|' && xmlData[i] !== ')') i++;
                 const notation = xmlData.substring(notationStart, i).trim();
-                validateName(notation);
+                validateName(notation, this.xmlVersion);
                 if (xmlData[i] === '|') {
                     i++;
                     i = skipWhitespace(xmlData, i);
@@ -258,8 +259,8 @@ function hasSeq(data, seq, i) {
     return true;
 }
 
-function validateName(name) {
-    if (!isXmlName(name)) throw new Error(`Invalid entity name "${name}"`);
+function validateName(name, xmlVersion = '1.0') {
+    if (!isXmlName(name, { xmlVersion })) throw new Error(`Invalid entity name "${name}"`);
 }
 
 /**
