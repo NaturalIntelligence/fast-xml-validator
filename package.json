@@ -1,6 +1,6 @@
 {
   "name": "fast-xml-validator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Validate XML for Syntax and Business rules without C/C++ based libraries",
   "main": "./lib/fxv.cjs",
   "type": "module",
