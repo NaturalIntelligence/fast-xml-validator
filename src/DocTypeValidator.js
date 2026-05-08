@@ -1,4 +1,4 @@
-import { isName } from './util.js';
+import { name as isXmlName } from 'xml-naming';
 
 const defaultOptions = {
     maxEntityCount: Infinity,
@@ -160,7 +160,7 @@ export default class DocTypeValidator {
         const nameStart = i;
         while (i < xmlData.length && !/\s/.test(xmlData[i])) i++;
         const elementName = xmlData.substring(nameStart, i);
-        if (!this.suppressValidationErr && !isName(elementName)) {
+        if (!this.suppressValidationErr && !isXmlName(elementName)) {
             throw new Error(`Invalid element name: "${elementName}"`);
         }
 
@@ -259,7 +259,7 @@ function hasSeq(data, seq, i) {
 }
 
 function validateName(name) {
-    if (!isName(name)) throw new Error(`Invalid entity name "${name}"`);
+    if (!isXmlName(name)) throw new Error(`Invalid entity name "${name}"`);
 }
 
 /**

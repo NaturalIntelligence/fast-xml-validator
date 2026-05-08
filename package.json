@@ -65,6 +65,7 @@
     }
   ],
   "dependencies": {
-    "detailed-xml-validator": "^2.1.0"
+    "detailed-xml-validator": "^2.1.0",
+    "xml-naming": "^0.1.0"
   }
 }

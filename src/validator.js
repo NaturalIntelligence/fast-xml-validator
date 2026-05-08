@@ -1,6 +1,7 @@
 'use strict';
 
-import { getAllMatches, isName } from './util.js';
+import { getAllMatches } from './util.js';
+import { name as xmlName, qName } from 'xml-naming';
 import DocTypeValidator from './DocTypeValidator.js';
 import ValidationError from './ValidationError.js';
 
@@ -228,11 +229,15 @@ function isWhiteSpace(char) {
 function readPI(xmlData, i) {
   const piStart = i; // points just after '<?'
   const nameStart = i;
+  let nameValidated = false;
 
   for (; i < xmlData.length; i++) {
     const ch = xmlData[i];
-    if (ch === ' ' || ch === '?') { //end of name
+
+    if (!nameValidated && (ch === ' ' || ch === '?')) {
+      // First delimiter — extract and validate the PI target name once
       const piName = xmlData.substr(nameStart, i - nameStart);
+      nameValidated = true;
 
       if (piName.toLowerCase() === 'xml') {
         return throwError(
@@ -240,12 +245,20 @@ function readPI(xmlData, i) {
           'XML declaration allowed only at the start of the document.',
           getLineNumberForPosition(xmlData, piStart - 2) // point at '<'
         );
-      } else if (ch === '?' && xmlData[i + 1] === '>') {
-        i++;
-        return i;
+      } else if (!xmlName(piName)) {
+        // PI target must be a valid XML Name (XML 1.0 §2.6)
+        return throwError(
+          'InvalidXml',
+          `Processing instruction target "${piName}" is not a valid XML Name.`,
+          getLineNumberForPosition(xmlData, piStart - 2)
+        );
       }
     }
-    continue;
+
+    if (ch === '?' && xmlData[i + 1] === '>') {
+      i++;
+      return i;
+    }
   }
 
   // reached EOF without closing '?>'
@@ -426,37 +439,14 @@ function throwError(code, message, lineNumber) {
 
 /**
  * Validate an XML QName (Namespaces in XML 1.0 §2.3).
- *
- * A QName is either:
- *   • a plain NCName  (no colon)          — e.g. "foo"
- *   • a prefixed name  NCName ':' NCName  — e.g. "ns:foo"
- *
- * Rules enforced:
- *   - The name must not be empty.
- *   - At most one colon is allowed.
- *   - Neither the prefix nor the local part may be empty
- *     (so ":foo", "ns:", and ":" are all rejected).
- *   - Both parts must individually satisfy isName().
+ * Delegates to xml-naming's qName production, which enforces:
+ *   - Non-empty input.
+ *   - At most one colon (used as prefix separator).
+ *   - Neither prefix nor local part may be empty (:foo, ns:, : all rejected).
+ *   - Both parts must satisfy NCName character rules.
  */
-function validateQName(name) {
-  if (!name || name.length === 0) return false;
-
-  const colonIndex = name.indexOf(':');
-
-  if (colonIndex === -1) {
-    // Plain name — no namespace prefix.
-    return isName(name);
-  }
-
-  // Reject multiple colons (e.g. "a:b:c").
-  if (name.indexOf(':', colonIndex + 1) !== -1) return false;
-
-  const prefix = name.substring(0, colonIndex);
-  const local = name.substring(colonIndex + 1);
-
-  // Both parts must be non-empty valid Names.
-  if (prefix.length === 0 || local.length === 0) return false;
-  return isName(prefix) && isName(local);
+function validateQName(str) {
+  return qName(str);
 }
 
 function getLineNumberForPosition(xmlData, index) {
