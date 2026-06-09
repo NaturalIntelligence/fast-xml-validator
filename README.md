@@ -1,6 +1,10 @@
 
 > Created by the author of [Fast XML Parser](https://github.com/NaturalIntelligence/fast-xml-parser).
 
+[![fast-xml-validator downloads](https://img.shields.io/npm/dw/fast-xml-validator.svg)](https://npm-compare.com/fast-xml-validator) 
+[![fast-xml-validator version](https://img.shields.io/npm/v/fast-xml-validator.svg)](https://www.npmjs.com/package/fast-xml-validator)
+[![fast-xml-validator license](https://img.shields.io/npm/l/fast-xml-validator.svg)](https://github.com/NaturalIntelligence/fast-xml-validator)
+
 This library exposes 2 type of XML validators
 1. Syntax validator
 2. Business rule validator (Schema)
@@ -49,7 +53,3 @@ const result = validator.validate(xmlData, options);
 ## Usage Trend
 
 [Usage Trend of fast-xml-validator](https://npm-compare.com/fast-xml-validator#timeRange=THREE_YEARS)
-  
-<a href="https://npm-compare.com/fast-xml-validator#timeRange=THREE_YEARS" target="_blank">
-  <img src="https://npm-compare.com/img/npm-trend/THREE_YEARS/fast-xml-validator.png" width="50%" alt="NPM Usage Trend of fast-xml-validator" />
-</a>
