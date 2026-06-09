@@ -45,3 +45,11 @@ const result = validator.validate(xmlData, options);
 - You want to ensure that email is unique for all employees
 - You have your own business validations.
 
+
+## Usage Trend
+
+[Usage Trend of fast-xml-validator](https://npm-compare.com/fast-xml-validator#timeRange=THREE_YEARS)
+  
+<a href="https://npm-compare.com/fast-xml-parser#timeRange=THREE_YEARS" target="_blank">
+  <img src="https://npm-compare.com/img/npm-trend/THREE_YEARS/fast-xml-validator.png" width="50%" alt="NPM Usage Trend of fast-xml-validator" />
+</a>
