@@ -50,6 +50,6 @@ const result = validator.validate(xmlData, options);
 
 [Usage Trend of fast-xml-validator](https://npm-compare.com/fast-xml-validator#timeRange=THREE_YEARS)
   
-<a href="https://npm-compare.com/fast-xml-parser#timeRange=THREE_YEARS" target="_blank">
+<a href="https://npm-compare.com/fast-xml-validator#timeRange=THREE_YEARS" target="_blank">
   <img src="https://npm-compare.com/img/npm-trend/THREE_YEARS/fast-xml-validator.png" width="50%" alt="NPM Usage Trend of fast-xml-validator" />
 </a>
