@@ -39,6 +39,16 @@ id="7" data="foo bar" bug="true"/>`;
         expect(result).toBe(true);
     });
 
+    it("should throw error when xmlns prefixed is undeclared for XML version 1.0", function () {
+        const xmlData = `<?xml version="1.0"?>
+        <project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+            <root xmlns:xsi="" ></root>
+        </project>
+        `;
+        expect(() => SyntaxValidator.validate(xmlData))
+            .toThrowError(`Undeclaring the prefixed namespace xmlns:xsi="" is only permitted in XML 1.1 documents.`);
+    });
+
     it("should remove xmlns when namespaces are set to be ignored", function () {
         const xmlData = `<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi-ns="http://www.w3.org/2001/XMLSchema-instance" xsi-ns:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"></project>`;
         const result = SyntaxValidator.validate(xmlData, {

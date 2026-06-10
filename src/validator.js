@@ -387,10 +387,15 @@ function validateAttributeString(attrStr, options, xmlVersion) {
       return { err: { code: 'InvalidAttr', msg: "Attribute '" + attrName + "' is an invalid name.", line: getPositionFromMatch(matches[i]) } };
     }
 
-    // xmlns="" (undeclaring the default namespace) is valid in XML 1.1
-    // only. Emit a clear error rather than silently accepting it.
-    if (attrName === 'xmlns' && matches[i][6] === '') {
-      return { err: { code: 'InvalidAttr', msg: 'Undeclaring the default namespace with xmlns="" is only permitted in XML 1.1 documents.', line: getPositionFromMatch(matches[i]) } };
+    // xmlns="" (undeclaring the prefixed namespace) is valid in XML 1.1
+    if (attrName.startsWith('xmlns:') && matches[i][6] === '' && xmlVersion === '1.0') {
+      return {
+        err: {
+          code: 'InvalidAttr',
+          msg: `Undeclaring the prefixed namespace ${attrName}="" is only permitted in XML 1.1 documents.`,
+          line: getPositionFromMatch(matches[i])
+        }
+      };
     }
 
     if (!Object.prototype.hasOwnProperty.call(attrNames, attrName)) {
