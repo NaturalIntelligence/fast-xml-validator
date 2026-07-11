@@ -1,7 +1,7 @@
 'use strict';
 
 import { getAllMatches } from './util.js';
-import { name as xmlName, qName } from 'xml-naming';
+import { createValidator } from 'xml-naming';
 import DocTypeValidator from './DocTypeValidator.js';
 import ValidationError from './ValidationError.js';
 
@@ -39,10 +39,16 @@ export function validate(xmlData, options) {
 
   const docTypeValidator = new DocTypeValidator(options.docType, xmlVersion);
 
+  // One memoized validator instance per production for this parse call — element/attribute
+  // names are repeated across many siblings, so caching pays off. xmlVersion is fixed for
+  // the whole parse, so it's safe to bind it once here rather than re-resolving per call.
+  const qNameValidator = createValidator('qName', { xmlVersion });
+  const nameValidator = createValidator('name', { xmlVersion });
+
   for (let i = 0; i < xmlData.length; i++) {
     if (xmlData[i] === '<' && xmlData[i + 1] === '?') {
       i += 2;
-      i = readPI(xmlData, i, xmlVersion);
+      i = readPI(xmlData, i, nameValidator);
       if (i.err) return i;
     } else if (xmlData[i] === '<') {
       //starting of tag
@@ -84,9 +90,9 @@ export function validate(xmlData, options) {
           i--;
         }
 
-        // use validateQName so namespaced tags (e.g. <ns:tag>) are
+        // use the shared qName validator so namespaced tags (e.g. <ns:tag>) are
         // accepted and malformed ones (e.g. <:tag>, <ns:>, <a:b:c>) are rejected.
-        if (!validateQName(tagName)) {
+        if (!qNameValidator(tagName)) {
           let msg;
           if (tagName.trim().length === 0) {
             msg = "Invalid space after '<'.";
@@ -107,7 +113,7 @@ export function validate(xmlData, options) {
           //self closing tag
           const attrStrStart = i - attrStr.length;
           attrStr = attrStr.substring(0, attrStr.length - 1);
-          const isValid = validateAttributeString(attrStr, options, xmlVersion);
+          const isValid = validateAttributeString(attrStr, options, qNameValidator, xmlVersion);
           if (isValid === true) {
             if (reachedRoot === true) {
               throwError('InvalidXml', 'Multiple possible root nodes found.', getLineNumberForPosition(xmlData, tagStartPos));
@@ -147,7 +153,7 @@ export function validate(xmlData, options) {
             }
           }
         } else {
-          const isValid = validateAttributeString(attrStr, options, xmlVersion);
+          const isValid = validateAttributeString(attrStr, options, qNameValidator, xmlVersion);
           if (isValid !== true) {
             throwError(isValid.err.code, isValid.err.msg, getLineNumberForPosition(xmlData, i - attrStr.length + isValid.err.line));
           }
@@ -177,7 +183,7 @@ export function validate(xmlData, options) {
               continue;
             } else if (xmlData[i + 1] === '?') {
               i += 2;
-              i = readPI(xmlData, i, xmlVersion);
+              i = readPI(xmlData, i, nameValidator);
               if (i.err) return i;
             } else {
               break;
@@ -225,7 +231,7 @@ function isWhiteSpace(char) {
   return char === ' ' || char === '\t' || char === '\n' || char === '\r';
 }
 
-function readPI(xmlData, i, xmlVersion = '1.0') {
+function readPI(xmlData, i, nameValidator) {
   const piStart = i; // points just after '<?'
   const nameStart = i;
   let nameValidated = false;
@@ -244,7 +250,7 @@ function readPI(xmlData, i, xmlVersion = '1.0') {
           'XML declaration allowed only at the start of the document.',
           getLineNumberForPosition(xmlData, piStart - 2) // point at '<'
         );
-      } else if (!xmlName(piName, { xmlVersion })) {
+      } else if (!nameValidator(piName)) {
         // PI target must be a valid XML Name (XML 1.0 §2.6)
         throwError(
           'InvalidXml',
@@ -366,7 +372,7 @@ function readAttributeStr(xmlData, i) {
 
 const validAttrStrRegxp = new RegExp('(\\s*)([^\\s=]+)(\\s*=)?(\\s*([\'"])(([\\s\\S])*?)\\5)?', 'g');
 
-function validateAttributeString(attrStr, options, xmlVersion) {
+function validateAttributeString(attrStr, options, qNameValidator, xmlVersion) {
   const matches = getAllMatches(attrStr, validAttrStrRegxp);
   const attrNames = {};
 
@@ -383,7 +389,7 @@ function validateAttributeString(attrStr, options, xmlVersion) {
 
     //validate attribute names as QNames so namespaced attributes
     // (e.g. xml:lang, xmlns:xsi) are accepted and malformed ones are rejected.
-    if (!validateQName(attrName, xmlVersion)) {
+    if (!qNameValidator(attrName)) {
       return { err: { code: 'InvalidAttr', msg: "Attribute '" + attrName + "' is an invalid name.", line: getPositionFromMatch(matches[i]) } };
     }
 
@@ -439,18 +445,6 @@ function validateAmpersand(xmlData, i) {
 
 function throwError(code, message, lineNumber) {
   throw new ValidationError(message, code, lineNumber.line || lineNumber, lineNumber.col);
-}
-
-/**
- * Validate an XML QName (Namespaces in XML 1.0 §2.3).
- * Delegates to xml-naming's qName production, which enforces:
- *   - Non-empty input.
- *   - At most one colon (used as prefix separator).
- *   - Neither prefix nor local part may be empty (:foo, ns:, : all rejected).
- *   - Both parts must satisfy NCName character rules.
- */
-function validateQName(str, xmlVersion = '1.0') {
-  return qName(str, { xmlVersion });
 }
 
 function getLineNumberForPosition(xmlData, index) {
