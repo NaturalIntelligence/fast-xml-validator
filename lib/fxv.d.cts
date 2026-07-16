@@ -14,6 +14,47 @@ type docTypeOptions = {
   maxEntitySize?: number;
 }
 
+type invalidCharSequenceOptions = {
+  /**
+   * Error if a comment body contains the literal sequence `--`
+   * (besides the `--` immediately before the closing `-->`).
+   *
+   * Defaults to `false`.
+   */
+  comment?: boolean;
+
+  /**
+   * Error if element text content contains the literal sequence `]]>`.
+   *
+   * Defaults to `false`.
+   */
+  tagValue?: boolean;
+
+  /**
+   * Error if an attribute value contains a literal `<`.
+   *
+   * Defaults to `false`.
+   */
+  attrLt?: boolean;
+};
+
+export type xmlDeclarationOptions = {
+  /**
+   * When `false`, the document MUST start with an `<?xml ... ?>` declaration.
+   *
+   * Defaults to `true`.
+   */
+  optional?: boolean;
+
+  /**
+   * When `true`, `version`/`encoding`/`standalone` must appear in that fixed
+   * order inside the XML declaration. When `false`, any order is accepted.
+   *
+   * Defaults to `true`.
+   */
+  argPosition?: boolean;
+};
+
 type validationOptions = {
   /**
    * Whether to allow attributes without value
@@ -30,6 +71,27 @@ type validationOptions = {
   unpairedTags?: string[];
 
   docType?: docTypeOptions;
+
+  /** Opt-in checks for otherwise-legal-looking but suspicious sequences. */
+  invalidCharSequence?: invalidCharSequenceOptions;
+
+  /** Controls handling of the `<?xml ... ?>` prolog. */
+  xmlDeclaraion?: xmlDeclarationOptions;
+
+  /**
+   * Allow more than one root-level element (as if wrapped in a virtual root).
+   *
+   * Defaults to `false`.
+   */
+  multipleRoots?: boolean;
+
+  /**
+   * Path expressions (see the `path-expression-matcher` package) for tags
+   * whose subtree should be excluded from validation entirely.
+   *
+   * Defaults to `[]`
+   */
+  skipTags?: string[];
 };
 
 type ValidationError = {
@@ -43,6 +105,8 @@ type ValidationError = {
 
 
 declare class SyntaxValidator {
+  constructor(options?: validationOptions);
+  validate(xmlData: string): true;
   static validate(xmlData: string, options?: validationOptions): true | ValidationError;
 }
 
