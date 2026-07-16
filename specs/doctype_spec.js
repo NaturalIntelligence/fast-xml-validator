@@ -175,4 +175,31 @@ describe("DOCTYPE validation", function () {
 
         expect(SyntaxValidator.validate(xmlData)).toBe(true);
     });
+
+    it("should error when a second DOCTYPE declaration is found", function () {
+        const xmlData = `<!DOCTYPE a><!DOCTYPE b><a/>`;
+
+        expect(() => SyntaxValidator.validate(xmlData))
+            .toThrowError("Multiple DOCTYPE declarations found.");
+    });
+
+    it("should error when DOCTYPE appears after the root element has started", function () {
+        const xmlData = `<a><!DOCTYPE a></a>`;
+
+        expect(() => SyntaxValidator.validate(xmlData))
+            .toThrowError("DOCTYPE must appear before the root element.");
+    });
+
+    it("should error when DOCTYPE appears after the root element has closed", function () {
+        const xmlData = `<a></a><!DOCTYPE a>`;
+
+        expect(() => SyntaxValidator.validate(xmlData))
+            .toThrowError("DOCTYPE must appear before the root element.");
+    });
+
+    it("should pass when a single DOCTYPE appears before the root element", function () {
+        const xmlData = `<?xml version="1.0"?><!DOCTYPE a><a/>`;
+
+        expect(SyntaxValidator.validate(xmlData)).toBe(true);
+    });
 });

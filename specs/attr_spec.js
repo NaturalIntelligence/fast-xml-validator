@@ -122,4 +122,26 @@ id="7" data="foo bar" bug="true"/>`;
         expect(() => SyntaxValidator.validate(xmlData)).toThrowError("boolean attribute '123' is not allowed.");
 
     });
+
+    it("should error on an unquoted attribute value", function () {
+        const xmlData = `<a x=1></a>`;
+        expect(() => SyntaxValidator.validate(xmlData)).toThrowError("Attribute 'x' is without value.");
+    });
+
+    it("should error on an illegal control character inside an attribute value", function () {
+        const xmlData = `<a x="b\x01c"></a>`;
+        expect(() => SyntaxValidator.validate(xmlData))
+            .toThrowError("Illegal control character 0x01 in attribute 'x' value.");
+    });
+
+    it("should pass with a literal '<' in an attribute value when attrLt is not configured", function () {
+        const xmlData = `<a x="b<c"></a>`;
+        expect(SyntaxValidator.validate(xmlData)).toBe(true);
+    });
+
+    it("should error on a literal '<' in an attribute value when invalidCharSequence.attrLt is true", function () {
+        const xmlData = `<a x="b<c"></a>`;
+        expect(() => SyntaxValidator.validate(xmlData, { invalidCharSequence: { attrLt: true } }))
+            .toThrowError("Attribute 'x' value must not contain '<'.");
+    });
 });

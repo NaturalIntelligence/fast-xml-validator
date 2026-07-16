@@ -17,7 +17,7 @@ function validateXml(xmlData, error, line = 1, col) {
     // console.log(result);
     if (error) {
         const keys = Object.keys(error);
-        expect(() => SyntaxValidator.validate(xmlData)).toThrowError(error[keys[0]])
+        expect(() => SyntaxValidator.validate(xmlData, { multipleRoots: false })).toThrowError(error[keys[0]])
         // const expected = {
         //     code: keys[0],
         //     msg: error[keys[0]],

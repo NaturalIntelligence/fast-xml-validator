@@ -116,33 +116,33 @@ describe("self-closing root tag — trailing text (bug fix)", () => {
 describe("self-closing root tag — multiple root detection (bug fix)", () => {
 
   it("rejects two identical self-closing roots  [was: silent pass]", () => {
-    expectError("<a/><a/>", "Multiple possible root nodes found.");
+    expectError("<a/><a/>", "Multiple possible root nodes found.", { multipleRoots: false });
   });
 
   it("rejects two different self-closing roots", () => {
-    expectError("<a/><b/>", "Multiple possible root nodes found.");
+    expectError("<a/><b/>", "Multiple possible root nodes found.", { multipleRoots: false });
   });
 
   it("rejects three self-closing roots", () => {
-    expectError("<a/><b/><c/>", "Multiple possible root nodes found.");
+    expectError("<a/><b/><c/>", "Multiple possible root nodes found.", { multipleRoots: false });
   });
 
   it("rejects a self-closing root followed by an open+close root", () => {
-    expectError("<a/><b></b>", "Multiple possible root nodes found.");
+    expectError("<a/><b></b>", "Multiple possible root nodes found.", { multipleRoots: false });
   });
 
   it("rejects an open+close root followed by a self-closing root", () => {
-    expectError("<a></a><b/>", "Multiple possible root nodes found.");
+    expectError("<a></a><b/>", "Multiple possible root nodes found.", { multipleRoots: false });
   });
 
   it("reports the position of the offending second root", () => {
     // <a/> ends at index 3; <b/> starts at index 4 -> col 5
-    expectErrorAt("<a/><b/>", "Multiple possible root nodes found.", 1, 5);
+    expectErrorAt("<a/><b/>", "Multiple possible root nodes found.", 1, 5, { multipleRoots: false });
   });
 
   it("has parity with the equivalent open+close form", () => {
-    expectError("<a/><b/>", "Multiple possible root nodes found.");
-    expectError("<a></a><b></b>", "Multiple possible root nodes found.");
+    expectError("<a/><b/>", "Multiple possible root nodes found.", { multipleRoots: false });
+    expectError("<a></a><b></b>", "Multiple possible root nodes found.", { multipleRoots: false });
   });
 });
 
