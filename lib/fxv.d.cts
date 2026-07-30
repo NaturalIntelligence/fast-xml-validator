@@ -107,7 +107,7 @@ type ValidationError = {
 declare class SyntaxValidator {
   constructor(options?: validationOptions);
   validate(xmlData: string): true;
-  static validate(xmlData: string, options?: validationOptions): true | ValidationError;
+  static validate(xmlData: string, options?: validationOptions): true;
 }
 
 interface BusinessRulesValidatorOptions {
