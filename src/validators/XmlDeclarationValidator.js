@@ -1,5 +1,93 @@
 'use strict';
 
+import { isWhiteSpace } from '../util.js';
+
+function isWordChar(ch) {
+  return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch === '_';
+}
+
+/**
+ * Walk the `<?xml ... ?>` body once, left to right, pulling out
+ * `name="value"` / `name='value'` pairs (each one preceded by required
+ * whitespace) and collecting everything else as leftover text.
+ *
+ * This replaces two regexes that used to do the same job:
+ *   /\s+([\w]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g          - to find attributes
+ *   /\s+[\w]+\s*=\s*(?:"[^"]*"|'[^']*')/g (via replace)  - to find leftovers
+ *
+ * Both led with a required-but-greedy `\s+`. On a long run of whitespace
+ * that's never followed by a valid `name=value`, the engine backtracks that
+ * whitespace group one character at a time before giving up on that
+ * starting position — and since none of those backtracked attempts can ever
+ * succeed (a whitespace character is never a valid name character, at any
+ * backtrack length), all of that retrying was wasted work. A `<?xml ?>`
+ * declaration padded with thousands of spaces could make this step take
+ * seconds. Scanning forward once, without ever revisiting a position, is
+ * both faster and gives the identical result — the retried attempts could
+ * never have succeeded anyway.
+ *
+ * @param {string} declBody
+ * @returns {{ matches: Array<{name: string, value: string, index: number}>, leftover: string }}
+ */
+function scanDeclAttributes(declBody) {
+  const matches = [];
+  let leftover = '';
+  const len = declBody.length;
+  let i = 0;
+
+  while (i < len) {
+    if (!isWhiteSpace(declBody[i])) {
+      leftover += declBody[i];
+      i++;
+      continue;
+    }
+
+    const matchStart = i;
+    let p = i;
+    while (p < len && isWhiteSpace(declBody[p])) p++;
+
+    const nameStart = p;
+    while (p < len && isWordChar(declBody[p])) p++;
+    if (p === nameStart) {
+      // Whitespace not followed by a name character — can't become a match
+      // no matter how much of the whitespace we consider, so it's leftover.
+      leftover += declBody.slice(matchStart, p + 1 <= len ? p : len);
+      i = p > matchStart ? p : matchStart + 1;
+      continue;
+    }
+    const name = declBody.slice(nameStart, p);
+
+    let q = p;
+    while (q < len && isWhiteSpace(declBody[q])) q++;
+    if (declBody[q] !== '=') {
+      leftover += declBody.slice(matchStart, p);
+      i = p;
+      continue;
+    }
+    q++; // skip '='
+    while (q < len && isWhiteSpace(declBody[q])) q++;
+
+    const quote = declBody[q];
+    if (quote !== '"' && quote !== "'") {
+      leftover += declBody.slice(matchStart, p);
+      i = p;
+      continue;
+    }
+    const valueStart = q + 1;
+    const closeIdx = declBody.indexOf(quote, valueStart);
+    if (closeIdx === -1) {
+      leftover += declBody.slice(matchStart, p);
+      i = p;
+      continue;
+    }
+
+    matches.push({ name, value: declBody.slice(valueStart, closeIdx), index: matchStart });
+    i = closeIdx + 1;
+  }
+
+  return { matches, leftover };
+}
+
 /**
  * XmlDeclarationValidator — single responsibility: parse and validate the
  * `<?xml version="..." encoding="..." standalone="..."?>` prolog.
@@ -49,16 +137,15 @@ export default class XmlDeclarationValidator {
     const end = piEnd + 2;
 
     const ALLOWED = ['version', 'encoding', 'standalone'];
-    const attrRe = /\s+([\w]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+    const { matches: declAttrs, leftover } = scanDeclAttributes(declBody);
 
     let version = '1.0';
     let lastAllowedIdx = -1;
-    let match;
 
-    while ((match = attrRe.exec(declBody)) !== null) {
-      const attrName = match[1];
-      const attrValue = match[2] !== undefined ? match[2] : match[3];
-      const attrPos = match.index;
+    for (let m = 0; m < declAttrs.length; m++) {
+      const attrName = declAttrs[m].name;
+      const attrValue = declAttrs[m].value;
+      const attrPos = declAttrs[m].index;
 
       const allowedIdx = ALLOWED.indexOf(attrName);
       if (allowedIdx === -1) {
@@ -91,10 +178,10 @@ export default class XmlDeclarationValidator {
       // encoding: value format validation is out of scope
     }
 
-    const leftover = declBody.replace(/\s+[\w]+\s*=\s*(?:"[^"]*"|'[^']*')/g, '').trim();
-    if (leftover.length > 0) {
+    const trimmedLeftover = leftover.trim();
+    if (trimmedLeftover.length > 0) {
       this._throwError('InvalidXml',
-        'XML declaration contains invalid content: "' + leftover + '".',
+        'XML declaration contains invalid content: "' + trimmedLeftover + '".',
         { line: 1, col: 1 });
     }
 
