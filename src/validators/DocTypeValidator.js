@@ -28,9 +28,21 @@ export default class DocTypeValidator {
         let angleBracketsCount = 1;
         let hasBody = false;
         let comment = false;
+        let quoteChar = null; // tracks an open SYSTEM/PUBLIC literal before the '[' body
         let entityCount = 0;
 
         for (; i < xmlData.length; i++) {
+            // Inside a quoted external-identifier literal — '<' and '>' are
+            // plain data here per the XML grammar, not DOCTYPE structure.
+            if (quoteChar !== null) {
+                if (xmlData[i] === quoteChar) quoteChar = null;
+                continue;
+            }
+            if (!hasBody && !comment && (xmlData[i] === '"' || xmlData[i] === "'")) {
+                quoteChar = xmlData[i];
+                continue;
+            }
+
             if (xmlData[i] === '<' && !comment) {
                 if (hasBody && hasSeq(xmlData, '!ENTITY', i)) {
                     i += 7;
@@ -69,7 +81,7 @@ export default class DocTypeValidator {
             }
         }
 
-        if (angleBracketsCount !== 0) {
+        if (quoteChar !== null || angleBracketsCount !== 0) {
             throw new Error(`Unclosed DOCTYPE`);
         }
 
