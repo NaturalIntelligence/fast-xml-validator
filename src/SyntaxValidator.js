@@ -88,6 +88,12 @@ export default class SyntaxValidator {
 
     const checkTagValueSeq = options.invalidCharSequence?.tagValue === true;
 
+    const checkExtraText = (position) => {
+      if (reachedRoot && tags.length === 0) {
+        throwError('InvalidXml', 'Extra text at the end', getLineNumberForPosition(xmlData, position));
+      }
+    };
+
     const checkDocTypePlacement = (startBang) => {
       const isDoctype = xmlData.substring(startBang, startBang + 9).toUpperCase() === '<!DOCTYPE';
       if (!isDoctype) return;
@@ -109,6 +115,9 @@ export default class SyntaxValidator {
         i++;
 
         if (xmlData[i] === '!') {
+          if (xmlData.startsWith('<![CDATA[', tagStartPos)) {
+            checkExtraText(tagStartPos);
+          }
           try {
             checkDocTypePlacement(tagStartPos);
             i = commentCdataReader.read(xmlData, i, docTypeValidator);
@@ -234,6 +243,9 @@ export default class SyntaxValidator {
           for (i++; i < xmlData.length; i++) {
             if (xmlData[i] === '<') {
               if (xmlData[i + 1] === '!') {
+                if (xmlData.startsWith('<![CDATA[', i)) {
+                  checkExtraText(i);
+                }
                 i++;
                 try {
                   checkDocTypePlacement(i - 1);
@@ -251,6 +263,7 @@ export default class SyntaxValidator {
                 break;
               }
             } else if (xmlData[i] === '&') {
+              checkExtraText(i);
               const afterAmp = this._validateAmpersand(xmlData, i);
               if (afterAmp === -1)
                 throwError('InvalidChar', "char '&' is not expected.", getLineNumberForPosition(xmlData, i));
@@ -261,8 +274,8 @@ export default class SyntaxValidator {
               if (isIllegalControlCode(code)) {
                 throwError('IllegalCharacter', `Illegal control character ${ControlCharValidator.describe(code)} in document content.`, getLineNumberForPosition(xmlData, i));
               }
-              if (reachedRoot === true && tags.length === 0 && !isWhiteSpace(xmlData[i])) {
-                throwError('InvalidXml', 'Extra text at the end', getLineNumberForPosition(xmlData, i));
+              if (!isWhiteSpace(xmlData[i])) {
+                checkExtraText(i);
               }
               if (checkTagValueSeq) {
                 prevTwo = (prevTwo + xmlData[i]).slice(-2);
