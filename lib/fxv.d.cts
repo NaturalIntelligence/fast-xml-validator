@@ -38,7 +38,7 @@ type invalidCharSequenceOptions = {
   attrLt?: boolean;
 };
 
-export type xmlDeclarationOptions = {
+type xmlDeclarationOptions = {
   /**
    * When `false`, the document MUST start with an `<?xml ... ?>` declaration.
    *
@@ -94,14 +94,11 @@ type validationOptions = {
   skipTags?: string[];
 };
 
-type ValidationError = {
-  err: {
-    code: string;
-    msg: string,
-    line: number,
-    col: number
-  };
-};
+interface ValidationError extends Error {
+  code: string;
+  line: number;
+  col: number;
+}
 
 
 declare class SyntaxValidator {
@@ -183,6 +180,7 @@ declare namespace fxv {
     SyntaxValidator,
     ValidationError,
     validationOptions,
+    xmlDeclarationOptions,
     BusinessRulesValidatorOptions,
 
   }

@@ -95,14 +95,11 @@ export type validationOptions = {
   skipTags?: string[];
 };
 
-export type ValidationError = {
-  err: {
-    code: string;
-    msg: string,
-    line: number,
-    col: number
-  };
-};
+export interface ValidationError extends Error {
+  code: string;
+  line: number;
+  col: number;
+}
 
 export class SyntaxValidator {
   constructor(options?: validationOptions);

@@ -21,6 +21,7 @@
   },
   "scripts": {
     "test": "c8 --reporter=lcov --reporter=text jasmine specs/*spec.js",
+    "test-types": "tsc --project specs/types/tsconfig.json",
     "bundle": "webpack --config webpack.cjs.config.js"
   },
   "files": [
