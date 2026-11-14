@@ -2,6 +2,10 @@
 
 import { SyntaxValidator } from "../src/fxv.js";
 
+function expectValid(xml, options = {}) {
+  expect(SyntaxValidator.validate(xml, options)).toBe(true);
+}
+
 // Helper: assert a ValidationError is thrown with the given message
 function expectError(xmlData, expectedMsg, options = {}) {
   let threw = false;
@@ -134,5 +138,49 @@ describe("extra text after root via outer loop", () => {
   it("should not error for whitespace after a top-level PI", () => {
     // Whitespace is allowed at the top level; only non-whitespace triggers the error
     expect(SyntaxValidator.validate(`<root></root><?pi?>   `)).toBe(true);
+  });
+});
+
+describe("character data outside the root element", () => {
+
+  it("rejects entity reference after root", () => {
+    expectError("<a/>&amp;", "Extra text at the end");
+    expectError("<a></a>&#65;", "Extra text at the end");
+  });
+
+  it("rejects CDATA outside root", () => {
+    expectError("<a/><![CDATA[x]]>", "CDATA section is not allowed outside the root element.");
+    expectError("<![CDATA[x]]><a/>", "CDATA section is not allowed outside the root element.");
+  });
+
+  it("rejects text after unpaired root", () => {
+    expectError("<br>x", "Extra text at the end", { unpairedTags: ["br"] });
+  });
+
+  it("rejects a second unpaired root when multipleRoots is false", () => {
+    expectError("<br><br>", "Multiple possible root nodes found.", { unpairedTags: ["br"], multipleRoots: false });
+  });
+
+  it("still allows comments/PIs after root", () => {
+    expectValid("<a/><!--c--><?pi?>");
+  });
+
+  it("still allows CDATA and entities inside the root", () => {
+    expectValid("<a><![CDATA[x]]>&amp;</a>");
+  });
+});
+
+describe("content following a skipped subtree", () => {
+
+  it("accepts text after a skipped child inside the root", () => {
+    expectValid("<root><script>x < y</script>text</root>", { skipTags: ["..script"] });
+  });
+
+  it("accepts entities and comments after a skipped child", () => {
+    expectValid("<root><script>x</script>&amp;<!--c--></root>", { skipTags: ["..script"] });
+  });
+
+  it("rejects text after a skipped root", () => {
+    expectError("<script>x</script>trailing", "Extra text at the end", { skipTags: ["..script"] });
   });
 });

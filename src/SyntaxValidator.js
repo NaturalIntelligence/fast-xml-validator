@@ -100,6 +100,24 @@ export default class SyntaxValidator {
       docTypeSeen = true;
     };
 
+    // Character data (text, entity references, CDATA) is only legal inside an
+    // element. At depth 0 it is "extra" data, whether before or after the root.
+    const checkTopLevelText = (pos) => {
+      if (tags.length === 0) {
+        throwError('InvalidXml', 'Extra text at the end', getLineNumberForPosition(xmlData, pos));
+      }
+    };
+
+    const checkCdataPlacement = (startBang) => {
+      if (tags.length === 0 && xmlData.startsWith('<![CDATA[', startBang)) {
+        throwError(
+          'InvalidXml',
+          'CDATA section is not allowed outside the root element.',
+          getLineNumberForPosition(xmlData, startBang)
+        );
+      }
+    };
+
     for (let i = 0; i < xmlData.length; i++) {
       if (xmlData[i] === '<' && xmlData[i + 1] === '?') {
         i += 2;
@@ -109,6 +127,7 @@ export default class SyntaxValidator {
         i++;
 
         if (xmlData[i] === '!') {
+          checkCdataPlacement(tagStartPos);
           try {
             checkDocTypePlacement(tagStartPos);
             i = commentCdataReader.read(xmlData, i, docTypeValidator);
@@ -214,14 +233,16 @@ export default class SyntaxValidator {
               throwError('InvalidXml', 'Multiple possible root nodes found.', getLineNumberForPosition(xmlData, i));
             } else if (options.unpairedTags.indexOf(tagName) !== -1) {
               skipMatcher.pop();
+              // An unpaired tag at depth 0 is a complete top-level element.
+              if (tags.length === 0) reachedRoot = true;
             } else if (skip) {
               // Consume the whole skipped subtree now, as opaque raw text,
-              // then continue scanning right after its closing tag.
+              // then fall through to the text scan below so that whatever
+              // follows the skipped tag's closing '>' (text, entities,
+              // comments, the next tag) is handled like after any other tag.
               i = RawSubtreeReader.consume(xmlData, tagName, i + 1);
               skipMatcher.pop();
               if (tags.length === 0) reachedRoot = true;
-              tagFound = true;
-              continue;
             } else {
               tags.push({ tagName, tagStartPos });
             }
@@ -235,6 +256,7 @@ export default class SyntaxValidator {
             if (xmlData[i] === '<') {
               if (xmlData[i + 1] === '!') {
                 i++;
+                checkCdataPlacement(i - 1);
                 try {
                   checkDocTypePlacement(i - 1);
                   i = commentCdataReader.read(xmlData, i, docTypeValidator);
@@ -251,6 +273,7 @@ export default class SyntaxValidator {
                 break;
               }
             } else if (xmlData[i] === '&') {
+              checkTopLevelText(i);
               const afterAmp = this._validateAmpersand(xmlData, i);
               if (afterAmp === -1)
                 throwError('InvalidChar', "char '&' is not expected.", getLineNumberForPosition(xmlData, i));
@@ -261,7 +284,7 @@ export default class SyntaxValidator {
               if (isIllegalControlCode(code)) {
                 throwError('IllegalCharacter', `Illegal control character ${ControlCharValidator.describe(code)} in document content.`, getLineNumberForPosition(xmlData, i));
               }
-              if (reachedRoot === true && tags.length === 0 && !isWhiteSpace(xmlData[i])) {
+              if (tags.length === 0 && !isWhiteSpace(xmlData[i])) {
                 throwError('InvalidXml', 'Extra text at the end', getLineNumberForPosition(xmlData, i));
               }
               if (checkTagValueSeq) {
