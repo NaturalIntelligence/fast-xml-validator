@@ -1,18 +1,18 @@
 type docTypeOptions = {
   /**
-   * maximum number of entity present in DOCTYPE 
-   * 
+   * maximum number of entity present in DOCTYPE
+   *
    * Defaults to `Infinity`
    */
   maxEntityCount?: number;
 
   /**
-   * maximum size of each entity present in DOCTYPE 
-   * 
+   * maximum size of each entity present in DOCTYPE
+   *
    * Defaults to `Infinity`
    */
   maxEntitySize?: number;
-}
+};
 
 type invalidCharSequenceOptions = {
   /**
@@ -38,7 +38,7 @@ type invalidCharSequenceOptions = {
   attrLt?: boolean;
 };
 
-export type xmlDeclarationOptions = {
+type xmlDeclarationOptions = {
   /**
    * When `false`, the document MUST start with an `<?xml ... ?>` declaration.
    *
@@ -58,14 +58,14 @@ export type xmlDeclarationOptions = {
 type validationOptions = {
   /**
    * Whether to allow attributes without value
-   * 
+   *
    * Defaults to `false`
    */
   allowBooleanAttributes?: boolean;
 
   /**
    * List of tags without closing tags
-   * 
+   *
    * Defaults to `[]`
    */
   unpairedTags?: string[];
@@ -78,10 +78,13 @@ type validationOptions = {
   /** Controls handling of the `<?xml ... ?>` prolog. */
   xmlDeclaraion?: xmlDeclarationOptions;
 
+  /** Correctly-spelled alias of `xmlDeclaraion`. */
+  xmlDeclaration?: xmlDeclarationOptions;
+
   /**
    * Allow more than one root-level element (as if wrapped in a virtual root).
    *
-   * Defaults to `false`.
+   * Defaults to `true`.
    */
   multipleRoots?: boolean;
 
@@ -94,19 +97,43 @@ type validationOptions = {
   skipTags?: string[];
 };
 
-type ValidationError = {
-  err: {
-    code: string;
-    msg: string,
-    line: number,
-    col: number
-  };
-};
+/**
+ * Known error codes. The union stays open (`string & {}`) so new codes
+ * added in the future don't break consumers' exhaustive checks.
+ */
+type ValidationErrorCode =
+  | 'InvalidXml'
+  | 'InvalidTag'
+  | 'InvalidAttr'
+  | 'InvalidChar'
+  | 'InvalidDocType'
+  | 'IllegalCharacter'
+  | 'UnquotedAttributeValue'
+  | (string & {});
 
+/**
+ * Thrown by `SyntaxValidator#validate` on the first well-formedness problem.
+ */
+declare class ValidationError extends Error {
+  constructor(message: string, code: ValidationErrorCode, line: number, col: number);
+  code: ValidationErrorCode;
+  line: number;
+  col: number;
+}
 
 declare class SyntaxValidator {
   constructor(options?: validationOptions);
+
+  /**
+   * @returns `true` when the document is well-formed.
+   * @throws {ValidationError} on the first problem found.
+   */
   validate(xmlData: string): true;
+
+  /**
+   * @returns `true` when the document is well-formed.
+   * @throws {ValidationError} on the first problem found.
+   */
   static validate(xmlData: string, options?: validationOptions): true;
 }
 
@@ -121,7 +148,7 @@ type ValidationFailure = {
   value?: string;
   actual?: number | string;
   expected?: number | string;
-}
+};
 
 type CustomValidatorFn = (
   value: string,
@@ -139,7 +166,7 @@ declare class BusinessRulesValidator {
    *
    * @example
    * ```ts
-   * const validator = new Validator(`
+   * const validator = new BusinessRulesValidator(`
    *   <students>
    *     <student repeatable minOccurs="1">
    *       <email unique="true" nillable="false"></email>
@@ -177,17 +204,20 @@ declare class BusinessRulesValidator {
   validate(xmldata: string): ValidationFailure[];
 }
 
-
 declare namespace fxv {
   export {
-    SyntaxValidator,
-    ValidationError,
+    docTypeOptions,
+    invalidCharSequenceOptions,
+    xmlDeclarationOptions,
     validationOptions,
+    ValidationErrorCode,
+    ValidationError,
+    SyntaxValidator,
     BusinessRulesValidatorOptions,
-
+    ValidationFailure,
+    CustomValidatorFn,
+    BusinessRulesValidator,
   }
 }
-
-
 
 export = fxv;
