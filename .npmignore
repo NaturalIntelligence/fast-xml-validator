@@ -13,3 +13,4 @@ docs*
 .nyc_output
 USERs.md
 *.zip
+.codebase*
