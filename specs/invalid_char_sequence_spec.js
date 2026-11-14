@@ -40,3 +40,38 @@ describe("invalidCharSequence option (opt-in, default off)", function () {
         });
     });
 });
+
+describe("invalidCharSequence.comment: comment ending with '-'", function () {
+    it("should pass `--->` by default (check is off)", function () {
+        expect(SyntaxValidator.validate(`<a><!-- x ---></a>`)).toBe(true);
+    });
+
+    it("should error on `--->` when invalidCharSequence.comment is true", function () {
+        expect(() => SyntaxValidator.validate(`<a><!-- x ---></a>`, { invalidCharSequence: { comment: true } }))
+            .toThrowError("Comment must not end with '-'.");
+    });
+
+    it("should error on `<!--->` style bodies ending in '-'", function () {
+        expect(() => SyntaxValidator.validate(`<a><!---></a>`, { invalidCharSequence: { comment: true } }))
+            .toThrow();
+    });
+
+    it("should still pass a single interior hyphen", function () {
+        expect(SyntaxValidator.validate(`<a><!-- a-b --></a>`, { invalidCharSequence: { comment: true } })).toBe(true);
+    });
+});
+
+describe("invalidCharSequence.tagValue: extra cases", function () {
+    it("should catch ']]]>'", function () {
+        expect(() => SyntaxValidator.validate(`<a>x]]]>y</a>`, { invalidCharSequence: { tagValue: true } }))
+            .toThrowError("Element text content must not contain ']]>'.");
+    });
+
+    it("should not flag ']]>' inside an attribute value", function () {
+        expect(SyntaxValidator.validate(`<a x="]]>"/>`, { invalidCharSequence: { tagValue: true } })).toBe(true);
+    });
+
+    it("should not carry state across a comment", function () {
+        expect(SyntaxValidator.validate(`<a>]<!-- c -->]></a>`, { invalidCharSequence: { tagValue: true } })).toBe(true);
+    });
+});

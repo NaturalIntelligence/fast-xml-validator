@@ -1,40 +1,11 @@
 'use strict';
 
-import { getPositionFromMatch, isWhiteSpace } from '../util.js';
+import { getPositionFromMatch, isWhiteSpace, findInvalidReference } from '../util.js';
 import ControlCharValidator from './ControlCharValidator.js';
 
 /**
  * Walk `attrStr` once, left to right, splitting it into attribute tokens.
  *
- * This replaces a regex that used to do the same job
- * (`(\s*)([^\s=]+)(\s*=)?(\s*(['"])(([\s\S])*?)\5)?`). That regex led with an
- * optional whitespace group followed by a required "non-whitespace" group.
- * On a long run of whitespace that never resolves into an attribute name
- * (e.g. a tag with thousands of trailing spaces before `>`), the engine
- * backtracks the whitespace group one character at a time before giving up
- * and moving to the next starting position — one full backtrack per
- * position, which is quadratic in the length of the run. A ~64KB tag made
- * entirely of spaces could stall the whole process for seconds.
- *
- * A single forward-only scan can never backtrack, so it can't be made slow
- * this way no matter how much whitespace the input contains — it's always
- * proportional to the length of the string, once.
- *
- * Each returned token mirrors the shape the old regex match array had, so
- * the validation logic below (which reads token[1]..token[6]) didn't need
- * to change:
- *   token.startIndex - where this token begins in attrStr
- *   token[1]          - leading whitespace before the name
- *   token[2]          - the attribute name
- *   token[3]          - whitespace + '=' if present, else undefined
- *   token[4]          - marker (any defined value) if a quoted value was found
- *   token[5]          - the quote character used ('"' or "'")
- *   token[6]          - the value's text, without the surrounding quotes
- *
- * A malformed leading character (e.g. a stray '=' with no name before it)
- * is simply skipped over, one character at a time — the same outcome the
- * old regex produced by failing to match at that position and retrying at
- * the next one.
  */
 function scanAttributeTokens(attrStr) {
   const tokens = [];
@@ -115,6 +86,8 @@ function scanAttributeTokens(attrStr) {
  *   - value present but not quoted -> UnquotedAttributeValue
  *   - boolean attributes rejected unless `allowBooleanAttributes`
  *   - illegal control characters inside the attribute value
+ *   - stray `&` (anything that isn't a well-formed `&name;` / `&#N;` / `&#xH;`
+ *     reference) inside the attribute value
  *   - `xmlns:x=""` only allowed in XML 1.1
  *
  * Checks performed (opt-in via `invalidCharSequence.attrLt`):
@@ -179,6 +152,14 @@ export default class AttributeStringValidator {
           return this._err(
             'IllegalCharacter',
             `Illegal control character ${ControlCharValidator.describe(code)} in attribute '${attrName}' value.`,
+            m
+          );
+        }
+
+        if (findInvalidReference(attrValue) !== -1) {
+          return this._err(
+            'InvalidAttr',
+            `Attribute '${attrName}' value contains an invalid or unterminated '&' reference.`,
             m
           );
         }

@@ -14,7 +14,8 @@ import ControlCharValidator from './ControlCharValidator.js';
  *
  * Opt-in checks (via `invalidCharSequence`):
  *   - `comment: true`  -> literal `--` inside a comment's body is rejected
- *     (besides the sequence immediately before the closing `-->`).
+ *     (besides the sequence immediately before the closing `-->`), and a
+ *     comment whose body ends in `-` (i.e. `--->`) is rejected too.
  */
 export default class CommentCdataReader {
   constructor(options = {}) {
@@ -75,8 +76,15 @@ export default class CommentCdataReader {
       const code = body.charCodeAt(illegalIdx);
       throw new Error(`Illegal control character ${ControlCharValidator.describe(code)} in comment.`);
     }
-    if (this.checkCommentDashes && body.indexOf('--') !== -1) {
-      throw new Error(`Comment must not contain '--'.`);
+    if (this.checkCommentDashes) {
+      if (body.indexOf('--') !== -1) {
+        throw new Error(`Comment must not contain '--'.`);
+      }
+      // `<!-- a --->`: the first '-->' found is the last two dashes, leaving a
+      // body that ends in '-'. The spec forbids a comment ending with '-'.
+      if (body.endsWith('-')) {
+        throw new Error(`Comment must not end with '-'.`);
+      }
     }
 
     return i;

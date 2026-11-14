@@ -396,8 +396,9 @@ export default class SyntaxValidator {
       i++;
       re = /[\da-fA-F]/;
     }
+    const digitsStart = i;
     for (; i < xmlData.length; i++) {
-      if (xmlData[i] === ';') return i;
+      if (xmlData[i] === ';') return i > digitsStart ? i : -1; // need >=1 digit
       if (!xmlData[i].match(re)) break;
     }
     return -1;

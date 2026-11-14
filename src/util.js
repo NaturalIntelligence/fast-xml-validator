@@ -57,3 +57,36 @@ export function getLineNumberForPosition(xmlData, index) {
 export function getPositionFromMatch(match) {
   return match.startIndex + match[1].length;
 }
+
+/**
+ * Find the first malformed reference in an attribute value.
+ *
+ * Per the XML spec, `&` may only appear as the start of a well-formed
+ * reference: `&name;`, `&#digits;` or `&#xhex;`. Names are limited to 20
+ * word characters, mirroring the text-content check in SyntaxValidator.
+ *
+ * Unlike SyntaxValidator#_validateAmpersand, a string that ends before the
+ * terminating ';' is reported as malformed (never accepted).
+ *
+ * @param {string} str
+ * @returns {number} index of the offending '&', or -1 if all are valid
+ */
+export function findInvalidReference(str) {
+  for (let i = str.indexOf('&'); i !== -1; i = str.indexOf('&', i + 1)) {
+    let j = i + 1;
+    if (str[j] === '#') {
+      j++;
+      const hex = str[j] === 'x';
+      if (hex) j++;
+      const re = hex ? /[0-9a-fA-F]/ : /[0-9]/;
+      const digitsStart = j;
+      while (j < str.length && re.test(str[j])) j++;
+      if (j === digitsStart || str[j] !== ';') return i;
+    } else {
+      const nameStart = j;
+      while (j < str.length && j - nameStart < 20 && /\w/.test(str[j])) j++;
+      if (j === nameStart || str[j] !== ';') return i;
+    }
+  }
+  return -1;
+}
