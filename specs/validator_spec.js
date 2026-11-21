@@ -304,6 +304,22 @@ describe("XML Validator", function () {
         validateXml('<h1><?mso?> abc</h1>');
     });
 
+    it("should accept a leading processing instruction whose target starts with xml", function () {
+        validateXml('<?xml-stylesheet href="feed.xsl"?><feed/>');
+        validateXml('<?xmlformat?><feed/>');
+    });
+
+    it("should accept XML whitespace between a processing instruction target and its data", function () {
+        for (const space of [' ', '\t', '\r', '\n']) {
+            validateXml('<feed><?format' + space + 'compact?></feed>');
+        }
+    });
+
+    it("should reject a question mark inside a processing instruction target", function () {
+        expect(() => SyntaxValidator.validate('<?xml-format?mode?><feed/>'))
+            .toThrowError(/not a valid XML Name/);
+    });
+
     it("should validate XML PIs", function () {
         const xml = `<?xml version="1.0"?>
         <content><?tibcochar ?> something</content>`;

@@ -119,7 +119,8 @@ export default class XmlDeclarationValidator {
    *   and end is 0 when there is no declaration present.
    */
   validate(xmlData) {
-    const hasDecl = xmlData.startsWith('<?xml');
+    const hasDecl = xmlData.startsWith('<?xml') &&
+      (isWhiteSpace(xmlData[5]) || xmlData.startsWith('?>', 5));
 
     if (!hasDecl) {
       if (!this.optional) {
