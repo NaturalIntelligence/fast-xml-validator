@@ -13,6 +13,12 @@ describe("xmlDeclaraion option", function () {
             .toThrowError("XML declaration is required but missing.");
     });
 
+    it("should require a declaration even when the document starts with xml-stylesheet", function () {
+        const xmlData = '<?xml-stylesheet href="feed.xsl"?><feed/>';
+        expect(() => SyntaxValidator.validate(xmlData, { xmlDeclaration: { optional: false } }))
+            .toThrowError("XML declaration is required but missing.");
+    });
+
     it("should pass when optional: false and the declaration is present", function () {
         const xmlData = `<?xml version="1.0"?><a/>`;
         expect(SyntaxValidator.validate(xmlData, { xmlDeclaraion: { optional: false } })).toBe(true);

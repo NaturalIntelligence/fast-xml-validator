@@ -330,8 +330,9 @@ export default class SyntaxValidator {
 
     for (; i < xmlData.length; i++) {
       const ch = xmlData[i];
+      const closesPI = ch === '?' && xmlData[i + 1] === '>';
 
-      if (!nameValidated && (ch === ' ' || ch === '?')) {
+      if (!nameValidated && (isWhiteSpace(ch) || closesPI)) {
         const piName = xmlData.substr(nameStart, i - nameStart);
         nameValidated = true;
 
@@ -350,7 +351,7 @@ export default class SyntaxValidator {
         }
       }
 
-      if (ch === '?' && xmlData[i + 1] === '>') {
+      if (closesPI) {
         i++;
         return i;
       }
